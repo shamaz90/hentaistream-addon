@@ -1,4 +1,5 @@
 const logger = require('./logger');
+const { proxyImage } = require('./metadata');
 
 /**
  * Parse episode number from various title formats
@@ -209,7 +210,7 @@ function buildVideosArray(seriesSlug, episodes) {
       season: season,
       episode: episodeNum,
       released: ep.released || ep.releaseDate || null,
-      thumbnail: ep.thumbnail || null,
+      thumbnail: proxyImage(ep.thumbnail || null),
       overview: ep.description || null,
     };
   });
