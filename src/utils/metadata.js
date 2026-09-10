@@ -6,6 +6,23 @@ const parser = require('./parser');
 const logger = require('./logger');
 
 /**
+ * Wraps raw image URLs with the wsrv.nl proxy to bypass hotlink protection and fix missing protocols.
+ * @param {string} url - Raw artwork image URL
+ * @returns {string} Proxied image URL
+ */
+function proxyImage(url) {
+  if (!url || typeof url !== 'string') return '';
+  
+  // Prevent double proxying
+  if (url.includes('wsrv.nl')) return url;
+
+  // Add missing protocol if relative (e.g. //cdn.com/image.jpg)
+  const fullUrl = url.startsWith('//') ? `https:${url}` : url;
+
+  return `https://wsrv.nl/?url=${encodeURIComponent(fullUrl)}&output=webp&q=80`;
+}
+
+/**
  * Transform API metadata to Stremio meta object
  * @param {Object} apiData - Raw metadata from API
  * @param {string} provider - Provider name (hanime, hh, etc.)
@@ -19,8 +36,13 @@ function toStremioMeta(apiData, provider) {
 
   const id = `${provider}-${apiData.slug || apiData.id}`;
   const name = apiData.name || apiData.title || 'Unknown';
-  const poster = apiData.poster_url || apiData.poster || apiData.cover_url || apiData.thumbnail;
-  const background = apiData.background_url || apiData.background || poster;
+  const rawPoster = apiData.poster_url || apiData.poster || apiData.cover_url || apiData.thumbnail;
+  const rawBackground = apiData.background_url || apiData.background || rawPoster;
+  
+  const poster = proxyImage(rawPoster);
+  const background = proxyImage(rawBackground);
+  const logo = apiData.logo_url ? proxyImage(apiData.logo_url) : null;
+
   const description = parser.formatDescription(apiData.description || apiData.synopsis || '');
   const releaseInfo = parser.parseReleaseYear(apiData.released_at || apiData.release_date || apiData.created_at);
   const genres = parser.normalizeGenres(apiData.tags || apiData.genres || apiData.categories || []);
@@ -31,7 +53,7 @@ function toStremioMeta(apiData, provider) {
     name,
     poster,
     background,
-    logo: apiData.logo_url || null,
+    logo,
     description,
     releaseInfo,
     genres,
@@ -60,16 +82,16 @@ function toCatalogMeta(item, provider) {
 
   const id = `${provider}-${item.slug || item.id}`;
   const name = item.name || item.title || 'Unknown';
-  const poster = item.poster_url || item.poster || item.cover_url || item.thumbnail;
-  const genres = parser.normalizeGenres(item.tags || item.genres || []).slice(0, 3);  // Limit to 3 for previews
+  const rawPoster = item.poster_url || item.poster || item.cover_url || item.thumbnail;
+  const genres = parser.normalizeGenres(item.tags || item.genres || []).slice(0, 3);
 
   return {
     id,
     type: 'series',
     name,
-    poster,
+    poster: proxyImage(rawPoster),
     genres,
-    description: parser.formatDescription(item.description || '', 200),  // Shorter for catalog
+    description: parser.formatDescription(item.description || '', 200),
     posterShape: 'poster',
   };
 }
@@ -78,10 +100,10 @@ function toCatalogMeta(item, provider) {
  * Extract poster URL with fallback
  * @param {Object} data - Data object with potential poster fields
  * @param {string} fallback - Fallback URL
- * @returns {string} Poster URL
+ * @returns {string} Proxied poster URL
  */
 function extractPosterUrl(data, fallback = null) {
-  return (
+  const rawUrl = (
     data.poster_url ||
     data.poster ||
     data.cover_url ||
@@ -90,6 +112,8 @@ function extractPosterUrl(data, fallback = null) {
     fallback ||
     'https://via.placeholder.com/300x450?text=No+Poster'
   );
+
+  return proxyImage(rawUrl);
 }
 
 /**
@@ -124,13 +148,13 @@ function mergeMeta(primary, secondary) {
   return {
     ...secondary,
     ...primary,
-    // Merge arrays
     genres: [...new Set([...(primary.genres || []), ...(secondary.genres || [])])],
     cast: [...new Set([...(primary.cast || []), ...(secondary.cast || [])])],
-    // Prefer primary for critical fields
     id: primary.id,
     type: primary.type,
     name: primary.name || secondary.name,
+    poster: primary.poster || secondary.poster,
+    background: primary.background || secondary.background,
   };
 }
 
@@ -143,18 +167,15 @@ function mergeMeta(primary, secondary) {
 function enhanceMeta(meta, additionalData = {}) {
   return {
     ...meta,
-    // Add popularity/view count if available
     popularityScore: additionalData.views || additionalData.popularity,
-    // Add content ratings
     contentRating: additionalData.censorship || additionalData.rating,
-    // Add language info
     language: additionalData.language || 'Japanese',
-    // Add website link
     website: additionalData.url || additionalData.website,
   };
 }
 
 module.exports = {
+  proxyImage,
   toStremioMeta,
   toCatalogMeta,
   extractPosterUrl,
