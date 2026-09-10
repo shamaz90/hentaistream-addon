@@ -1,5 +1,7 @@
 const cache = require('../../cache');
 const logger = require('../../utils/logger');
+const { proxyImage } = require('../../utils/metadata');
+
 // LAZY LOAD: Scrapers only loaded when needed (database miss)
 let hentaimamaScraper = null;
 let oppaiStreamScraper = null;
@@ -234,8 +236,9 @@ function buildMetaResponse(data, dbData) {
       id: data.seriesId || data.id,
       type: 'series',
       name: data.name,
-      poster: data.poster || undefined,
-      background: data.poster || undefined,
+      poster: data.poster ? proxyImage(data.poster) : undefined,
+      background: data.poster ? proxyImage(data.poster) : undefined,
+      logo: data.logo ? proxyImage(data.logo) : undefined,
       description: cleanDescription, // Rating breakdown intentionally not shown - only for internal use
       releaseInfo: data.releaseInfo || data.year || undefined,
       // Show rating in runtime field (avoids IMDb logo)
@@ -255,12 +258,13 @@ function buildMetaResponse(data, dbData) {
         const epNum = ep.number || ep.episodeNumber || 1;
         const epTitle = ep.title || ep.name || `Episode ${epNum}`;
         const seriesId = data.seriesId || data.id; // Use series ID, not episode ID
+        const rawThumb = ep.poster || data.poster;
         return {
           id: `${seriesId}:1:${epNum}`,
           title: epTitle,
           season: 1,
           episode: epNum,
-          thumbnail: ep.poster || data.poster || undefined, // Use episode's poster first
+          thumbnail: rawThumb ? proxyImage(rawThumb) : undefined, // Proxy episode thumbnail
           released: ep.released || undefined, // Add release date (ISO string) for Stremio display
         };
       }),
@@ -268,12 +272,13 @@ function buildMetaResponse(data, dbData) {
     
     // If no episodes, create a single episode entry
     if (meta.videos.length === 0) {
+      const rawThumb = data.poster;
       meta.videos = [{
         id: `${data.id}:1:1`,
         title: data.name,
         season: 1,
         episode: 1,
-        thumbnail: data.poster || undefined,
+        thumbnail: rawThumb ? proxyImage(rawThumb) : undefined,
       }];
     }
 
