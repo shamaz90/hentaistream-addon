@@ -15,10 +15,7 @@ function proxyImage(url) {
   
   const trimmedUrl = url.trim();
 
-  // Prevent double proxying
-  if (trimmedUrl.includes('wsrv.nl')) return trimmedUrl;
-
-  // Add missing protocol if relative (e.g. //cdn.com/image.jpg) or missing protocol scheme
+  // Add missing protocol if relative or missing scheme
   let fullUrl = trimmedUrl;
   if (fullUrl.startsWith('//')) {
     fullUrl = `https:${fullUrl}`;
@@ -26,7 +23,8 @@ function proxyImage(url) {
     fullUrl = `https://${fullUrl}`;
   }
 
-  return `https://wsrv.nl/?url=${encodeURIComponent(fullUrl)}&output=webp&q=80`;
+  // Use a reliable image proxy service format or direct absolute url if wsrv fails
+  return `https://wsrv.nl/?url=${encodeURIComponent(fullUrl)}&output=jpg&q=85`;
 }
 
 /**
