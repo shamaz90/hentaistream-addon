@@ -1,5 +1,6 @@
 const express = require('express');
 const path = require('path');
+const axios = require('axios');
 // Note: We no longer use stremio-addon-sdk's serveHTTP/getRouter to bypass the 8KB manifest limit
 const config = require('./config/env');
 const logger = require('./utils/logger');
@@ -205,7 +206,7 @@ function getClientIP(req) {
 
 app.use((req, res, next) => {
   // Skip rate limiting for simple endpoints
-  if (req.path === '/health' || req.path === '/manifest.json' || req.path.startsWith('/public')) {
+  if (req.path === '/health' || req.path === '/manifest.json' || req.path.startsWith('/public') || req.path.startsWith('/proxy/') || req.path === '/image-proxy') {
     return next();
   }
   
@@ -578,33 +579,43 @@ app.get('/', (req, res) => {
   res.redirect('/configure');
 });
 
-// Image proxy endpoint to handle hanime-cdn images (they require Referer header)
-app.get('/image-proxy', async (req, res) => {
+// Unified Image Proxy endpoint for all external images
+const handleImageProxy = async (req, res) => {
   try {
     const imageUrl = req.query.url;
-    if (!imageUrl || !imageUrl.startsWith('https://hanime-cdn.com/')) {
-      return res.status(400).send('Invalid image URL');
+    if (!imageUrl) {
+      return res.status(400).send('Missing url parameter');
     }
 
-    const axios = require('axios');
-    const imageResponse = await axios.get(imageUrl, {
+    const decodedUrl = decodeURIComponent(imageUrl);
+    const targetUrl = new URL(decodedUrl);
+
+    const imageResponse = await axios({
+      method: 'get',
+      url: decodedUrl,
       responseType: 'stream',
       headers: {
-        'Referer': 'https://hanime.tv/',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+        'Referer': targetUrl.origin
       },
+      timeout: 10000
     });
 
-    // Forward content type and cache headers
-    res.setHeader('Content-Type', imageResponse.headers['content-type']);
-    res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache for 24 hours
-    
+    if (imageResponse.headers['content-type']) {
+      res.setHeader('Content-Type', imageResponse.headers['content-type']);
+    }
+    res.setHeader('Cache-Control', 'public, max-age=86400, immutable');
+
     imageResponse.data.pipe(res);
   } catch (error) {
-    logger.error('Image proxy error:', error);
-    res.status(500).send('Error fetching image');
+    logger.error('Image proxy error:', error.message);
+    res.status(502).send('Error fetching image');
   }
-});
+};
+
+app.get('/image-proxy', handleImageProxy);
+app.get('/proxy/image', handleImageProxy);
 
 // Video proxy endpoint for HentaiSea (IP-restricted videos)
 // This fetches a FRESH authenticated URL and proxies the video
