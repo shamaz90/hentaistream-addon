@@ -1,5 +1,7 @@
 const cache = require('../../cache');
 const logger = require('../../utils/logger');
+const { proxyImage } = require('../../utils/metadata');
+
 // LAZY LOAD: Scrapers only loaded when needed (database miss)
 // This saves ~50MB+ memory when database mode is active
 let hentaimamaScraper = null;
@@ -65,6 +67,11 @@ function formatSeriesMeta(series) {
   
   // IMPORTANT: For Stremio to display metas properly, we need type='series'
   formatted.type = 'series';
+
+  // Proxy image fields so they bypass hotlink protection and load reliably
+  if (formatted.poster) formatted.poster = proxyImage(formatted.poster);
+  if (formatted.background) formatted.background = proxyImage(formatted.background);
+  if (formatted.logo) formatted.logo = proxyImage(formatted.logo);
   
   // Use runtime field for rating display (to avoid IMDb logo)
   // Priority-based system: HentaiMama > HentaiTV > HentaiSea > N/A
@@ -154,7 +161,7 @@ function genreNameToSlug(genreName, provider = 'hentaimama') {
   if (!genreName) return null;
   
   // IMPORTANT: Remove count suffix like " (1737)" before converting to slug
-  const cleanName = genreName.replace(/\\s*\\(\\d+\\)$/, '').trim();
+  const cleanName = genreName.replace(/\s*\(\d+\)$/, '').trim();
   
   // Use genreMatcher for provider-specific slug mapping
   return genreMatcher.getSlugForProvider(cleanName, provider);
