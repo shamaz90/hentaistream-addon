@@ -11,13 +11,20 @@ const logger = require('./logger');
  * @returns {string} Proxied image URL
  */
 function proxyImage(url) {
-  if (!url || typeof url !== 'string') return '';
+  if (!url || typeof url !== 'string' || !url.trim()) return '';
   
-  // Prevent double proxying
-  if (url.includes('wsrv.nl')) return url;
+  const trimmedUrl = url.trim();
 
-  // Add missing protocol if relative (e.g. //cdn.com/image.jpg)
-  const fullUrl = url.startsWith('//') ? `https:${url}` : url;
+  // Prevent double proxying
+  if (trimmedUrl.includes('wsrv.nl')) return trimmedUrl;
+
+  // Add missing protocol if relative (e.g. //cdn.com/image.jpg) or missing protocol scheme
+  let fullUrl = trimmedUrl;
+  if (fullUrl.startsWith('//')) {
+    fullUrl = `https:${fullUrl}`;
+  } else if (!fullUrl.startsWith('http://') && !fullUrl.startsWith('https://')) {
+    fullUrl = `https://${fullUrl}`;
+  }
 
   return `https://wsrv.nl/?url=${encodeURIComponent(fullUrl)}&output=webp&q=80`;
 }
@@ -104,11 +111,11 @@ function toCatalogMeta(item, provider) {
  */
 function extractPosterUrl(data, fallback = null) {
   const rawUrl = (
-    data.poster_url ||
-    data.poster ||
-    data.cover_url ||
-    data.thumbnail ||
-    data.image ||
+    data?.poster_url ||
+    data?.poster ||
+    data?.cover_url ||
+    data?.thumbnail ||
+    data?.image ||
     fallback ||
     'https://via.placeholder.com/300x450?text=No+Poster'
   );
@@ -153,8 +160,8 @@ function mergeMeta(primary, secondary) {
     id: primary.id,
     type: primary.type,
     name: primary.name || secondary.name,
-    poster: primary.poster || secondary.poster,
-    background: primary.background || secondary.background,
+    poster: proxyImage(primary.poster || secondary.poster),
+    background: proxyImage(primary.background || secondary.background),
   };
 }
 
