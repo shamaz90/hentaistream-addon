@@ -23,7 +23,7 @@ function proxyImage(url) {
     fullUrl = `https://${fullUrl}`;
   }
 
-  // Use a reliable image proxy service format or direct absolute url if wsrv fails
+  // Use a reliable image proxy service format
   return `https://wsrv.nl/?url=${encodeURIComponent(fullUrl)}&output=jpg&q=85`;
 }
 
@@ -54,7 +54,7 @@ function toStremioMeta(apiData, provider) {
 
   return {
     id,
-    type: 'series',
+    type: 'hentai',
     name,
     poster,
     background,
@@ -92,7 +92,7 @@ function toCatalogMeta(item, provider) {
 
   return {
     id,
-    type: 'series',
+    type: 'hentai',
     name,
     poster: proxyImage(rawPoster),
     genres,
